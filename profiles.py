@@ -3364,7 +3364,7 @@ def stitchSIDMcore(r1,halo,disk,N=500):
     lgsigma0_lo = np.log10(0.5*sigmaCDM1)
     lgsigma0_hi = np.log10(2.0*sigmaCDM1)
     # define the radius array
-    r = np.logspace(-3.,np.log10(r1),N) 
+    r = np.logspace(-3.,np.log10(r1),N)
     # minimize
     res = minimize(delta,[lgrhodm0_init,lgsigma0_init],
         args=(rhob0,r0,rhoCDM1,MCDM1,r),
@@ -3373,6 +3373,71 @@ def stitchSIDMcore(r1,halo,disk,N=500):
     # compute the profile to be returned
     rhodm0 = 10.**res.x[0]
     sigma0 = 10.**res.x[1]
+    a = cfg.FourPiG * r0**2 *rhodm0 / sigma0**2
+    b = cfg.FourPiG * r0**2 *rhob0 / sigma0**2
+    rho = rhodm0 * np.exp(h(r/r0,a,b))
+    M = Miso(r,rho)
+    Vc = np.sqrt(cfg.G*M/r)
+    return rhodm0,sigma0,rho,Vc,r
+
+def _stitchSIDMcore(r1,halo,disk,N=500):
+    """
+    Find the isothermal SIDM core that is stitched smoothly to the 
+    CDM-like outskirt.
+    
+    Syntax:
+    
+        stitchSIDMcore(r1,h,N=500)
+        
+    where
+    
+        r1: the characteristic radius of a SIDM halo at which an average 
+            particle is scattered once during the age of the halo [kpc]
+            (float)
+        halo: the halo profile for the CDM-like outskirt 
+            (a density profile object)
+        disk: the galaxy profile (a Hernquist object)
+        N: length of the isothermal-core profile to be returned
+            (int, default=500)
+    
+    Return:
+        central DM density [M_sun/kpc^3] (float),
+        central DM velocity dispersion [kpc/Gyr] (float),
+        density profile out to r1 [M_sun/kpc^3] (array of length N),
+        circular velocity profile out to r1 [M_sun] (array of length N),
+        radii for the profile [kpc] (array of length N)
+    """
+    # prepare a few quantities
+    sigmaCDM1 = halo.sigma(r1)
+    rhoCDM1 = halo.rho(r1)
+    MCDM1 = halo.M(r1)
+    rhoCDMres = halo.rho(cfg.Rres)
+    rhob0 = disk.rho0
+    r0 = disk.r0
+    # specify the initial guess and the searching range
+    lgrhodm0_init = 0.5*(np.log10(rhoCDM1)+np.log10(rhoCDMres))
+    lgsigma0_init = np.log10(sigmaCDM1)
+    lgrhodm0_lo = np.log10(rhoCDM1)
+    lgrhodm0_hi = np.log10(2.*rhoCDMres)
+    lgsigma0_lo = np.log10(0.5*sigmaCDM1)
+    lgsigma0_hi = np.log10(2.0*sigmaCDM1)
+    # define the radius array
+    r = np.logspace(-3.,np.log10(r1),N)
+    # minimize
+    res = minimize(delta,[lgrhodm0_init,lgsigma0_init],
+        args=(rhob0,r0,rhoCDM1,MCDM1,r),
+        bounds=((lgrhodm0_lo,lgrhodm0_hi),(lgsigma0_lo,lgsigma0_hi)),
+        )
+    # compute the profile to be returned
+    rhodm0 = 10.**res.x[0]
+    sigma0 = 10.**res.x[1]
+    
+    return rhodm0,sigma0
+
+def inner_SIDMcore(rhodm0, sigma0, r1, disk, N=500):
+    r0 = disk.r0
+    rhob0 = disk.rho0
+    r = np.logspace(-3.,np.log10(r1),N)
     a = cfg.FourPiG * r0**2 *rhodm0 / sigma0**2
     b = cfg.FourPiG * r0**2 *rhob0 / sigma0**2
     rho = rhodm0 * np.exp(h(r/r0,a,b))
